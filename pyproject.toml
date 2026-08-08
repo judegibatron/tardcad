@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tardcad"
+version = "0.2.0"
+description = "An open-source mechanical solid-modeling CAD application"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "TardCAD contributors" }]
+dependencies = ["PySide6>=6.7,<7", "cadquery-ocp>=7.7,<8"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "ruff>=0.6,<1"]
+all = ["pytest>=8,<9", "ruff>=0.6,<1"]
+
+[project.scripts]
+tardcad = "tardcad.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tardcad"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
