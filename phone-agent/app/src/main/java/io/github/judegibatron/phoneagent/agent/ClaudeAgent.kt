@@ -15,6 +15,7 @@ import com.anthropic.models.beta.messages.BetaTextBlockParam
 import com.anthropic.models.beta.messages.BetaThinkingConfigAdaptive
 import com.anthropic.models.beta.messages.BetaToolResultBlockParam
 import com.anthropic.models.beta.messages.BetaToolUseBlock
+import com.anthropic.models.beta.messages.BetaWebSearchTool20250305
 import com.anthropic.models.beta.messages.BetaWebSearchTool20260209
 import com.anthropic.models.beta.messages.MessageCreateParams
 import io.github.judegibatron.phoneagent.core.AgentLog
@@ -122,7 +123,11 @@ class ClaudeAgent(
             .cacheControl(BetaCacheControlEphemeral.builder().build())
 
         tools.toBetaTools().forEach { builder.addTool(it) }
-        if (settings.webSearch) builder.addTool(BetaWebSearchTool20260209.builder().maxUses(3L).build())
+        if (settings.webSearch) {
+            // The dynamic-filtering variant needs a current-generation model; Haiku 4.5 takes the basic one.
+            if (model.contains("haiku")) builder.addTool(BetaWebSearchTool20250305.builder().maxUses(3L).build())
+            else builder.addTool(BetaWebSearchTool20260209.builder().maxUses(3L).build())
+        }
 
         if (!model.contains("haiku")) {
             // Adaptive thinking is the only thinking mode on current models; effort controls depth.

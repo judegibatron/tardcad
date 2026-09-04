@@ -282,7 +282,12 @@ class MainActivity : Activity() {
     // ---------------------------------------------------------------- status
 
     private fun refreshStatuses() {
-        setStatus("root", if (app.root.isAvailable()) "granted" else "not granted (tap Request; approve in your root app)", app.root.isAvailable())
+        // Never call isAvailable() here: it may block on the root manager's prompt (ANR on the UI thread).
+        when (app.root.knownAvailability) {
+            true -> setStatus("root", "granted", true)
+            false -> setStatus("root", "not granted (tap Request; approve in your root app)", false)
+            null -> setStatus("root", "not checked yet (tap Request)", false)
+        }
         val accessibilityOn = isAccessibilityEnabled()
         setStatus("accessibility", if (accessibilityOn) "enabled" else "disabled", accessibilityOn)
         val notifOn = AgentNotificationListener.isEnabled(this)

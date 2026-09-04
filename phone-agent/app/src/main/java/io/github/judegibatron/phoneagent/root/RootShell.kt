@@ -28,6 +28,9 @@ class RootShell {
     @Volatile
     private var available: Boolean? = null
 
+    /** Last known root state without running anything; null until the first check completes. */
+    val knownAvailability: Boolean? get() = available
+
     /** True when `su -c id` reports uid 0. The first call may pop the root manager's grant dialog. */
     fun isAvailable(refresh: Boolean = false): Boolean {
         if (!refresh) available?.let { return it }
