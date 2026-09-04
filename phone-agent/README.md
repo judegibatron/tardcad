@@ -34,10 +34,31 @@ Sending texts, placing calls and running shell commands ask you for a spoken "ye
 
 ## Build and install
 
-```bash
+One command from a PC with the phone plugged in (USB debugging on). It builds, installs, grants
+every permission through `adb` (no root needed for that part), enables the accessibility
+service and opens the app:
+
+```powershell
+# Windows
 cd phone-agent
-./gradlew assembleDebug            # needs JDK 17+, Android SDK platform 35 (Android Studio installs it)
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+.\scripts\install.ps1                        # add -Uninstall com.old.app to remove a previous app first
+```
+
+```bash
+# macOS / Linux
+cd phone-agent
+scripts/install.sh                            # add --uninstall com.old.app to remove a previous app first
+```
+
+Needs JDK 17+, the Android SDK with platform 35 (Android Studio's SDK Manager installs it) and
+`adb` on the PATH. To find the package name of an app you want removed:
+`adb shell pm list packages | grep -i <part-of-its-name>` (`findstr /i` on Windows).
+
+Manual equivalent:
+
+```bash
+./gradlew assembleDebug
+adb install -r -g app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Android Studio: File > Open > `phone-agent`, then Run. The debug and release builds share one
