@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:recognitionService="io.github.judegibatron.phoneagent.assist.ProxyRecognitionService"
+    android:sessionService="io.github.judegibatron.phoneagent.assist.AgentVoiceSessionService"
+    android:settingsActivity="io.github.judegibatron.phoneagent.ui.MainActivity"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="true" />

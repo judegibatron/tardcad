@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Phone Agent</string>
+    <string name="accessibility_service_description">Lets Phone Agent read the screen, tap, type and press system buttons on your behalf when you give it a voice command, and show the voice session card over other apps.</string>
+    <string name="notification_channel_service">Hold-to-talk service</string>
+    <string name="notification_channel_alerts">Alerts</string>
+</resources>
