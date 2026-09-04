@@ -13,6 +13,8 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import android.text.InputType
@@ -53,7 +55,16 @@ class MainActivity : Activity() {
     private lateinit var content: LinearLayout
     private lateinit var logView: TextView
     private val statusViews = HashMap<String, TextView>()
-    private val logListener: () -> Unit = { runOnUiThread { refreshLog() } }
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private val refreshStatusesDebounced = Runnable { if (!isDestroyed && !isFinishing) refreshStatuses() }
+    private val logListener: () -> Unit = {
+        runOnUiThread {
+            refreshLog()
+            // Root/service state changes show up as log lines; refresh the checklist shortly after.
+            uiHandler.removeCallbacks(refreshStatusesDebounced)
+            uiHandler.postDelayed(refreshStatusesDebounced, 400)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,11 +94,13 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         AgentLog.removeListener(logListener)
+        uiHandler.removeCallbacks(refreshStatusesDebounced)
         super.onPause()
     }
 
     override fun onDestroy() {
-        background.shutdownNow()
+        // Let a running root task finish (its grants are still wanted); just stop accepting new ones.
+        background.shutdown()
         super.onDestroy()
     }
 
@@ -357,9 +370,10 @@ class MainActivity : Activity() {
                 "Failed: ${e.message}"
             }
             runOnUiThread {
+                TriggerService.start(applicationContext)
+                if (isDestroyed || isFinishing) return@runOnUiThread
                 AlertDialog.Builder(this).setTitle(title).setMessage(report).setPositiveButton("OK", null).show()
                 refreshStatuses()
-                TriggerService.start(this)
             }
         }
     }

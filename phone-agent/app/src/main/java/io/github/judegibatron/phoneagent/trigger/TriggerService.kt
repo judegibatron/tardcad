@@ -20,6 +20,8 @@ import io.github.judegibatron.phoneagent.ui.MainActivity
  */
 class TriggerService : Service() {
 
+    private var inForeground = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -33,6 +35,10 @@ class TriggerService : Service() {
             TriggerManager.stop()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
+            return START_NOT_STICKY
+        }
+        if (!inForeground) {
+            // startInForeground() already gave up and called stopSelf(); do not post an orphan notification.
             return START_NOT_STICKY
         }
         TriggerManager.sync(this)
@@ -55,6 +61,7 @@ class TriggerService : Service() {
             try {
                 if (type == null) startForeground(NOTIFICATION_ID, notification)
                 else startForeground(NOTIFICATION_ID, notification, type)
+                inForeground = true
                 return
             } catch (e: Exception) {
                 AgentLog.w(TAG, "startForeground(type=$type) rejected: ${e.javaClass.simpleName}: ${e.message}")
@@ -98,6 +105,8 @@ class TriggerService : Service() {
         const val ACTION_STOP = "io.github.judegibatron.phoneagent.action.STOP_SERVICE"
 
         fun start(context: Context) {
+            // Respect the user's Stop: callers (boot, accessibility connect, setup screen) need not re-check.
+            if (!PhoneAgentApp.get(context).settings.serviceEnabled) return
             // The detector does not depend on the service; make sure it runs even if the FGS start is refused.
             TriggerManager.sync(context)
             try {

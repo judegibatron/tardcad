@@ -34,6 +34,7 @@ if [ -z "$DEVICE" ]; then
   exit 1
 fi
 echo "Using device $DEVICE"
+export ANDROID_SERIAL="$DEVICE"   # every adb call below targets this device even if others are attached
 
 if [ -n "$UNINSTALL" ]; then
   echo "Uninstalling $UNINSTALL"

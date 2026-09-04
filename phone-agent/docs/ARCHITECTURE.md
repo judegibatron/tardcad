@@ -104,10 +104,12 @@ Errors from the SDK are mapped to short spoken messages (bad key, rate limit, of
 
 - Uses the Anthropic Java SDK's beta Messages endpoint so the request can carry
   `fallbacks: "default"` (server-side refusal fallbacks) alongside the tools.
-- Request shape: tools (fixed order) -> system block 1 (static instructions, `cache_control`)
-  -> system block 2 (volatile device context) -> messages; a top-level `cache_control` auto-caches
-  the growing conversation. Adaptive thinking plus `output_config.effort` on every model except
-  Haiku 4.5.
+- Request shape: tools (fixed order) -> system (static instructions, `cache_control`) ->
+  messages, where the first user turn carries the volatile device context as its own text block so
+  the cached prefix never changes; a top-level `cache_control` auto-caches the growing
+  conversation. Adaptive thinking plus `output_config.effort` on every model except Haiku 4.5.
+  One HTTP client is shared for the process (rebuilt when the key changes) and requests go
+  through the async client so a cancelled session returns immediately.
 - Loop: `stop_reason == tool_use` -> execute every `tool_use` block, return all results in one
   user message (images as `image` blocks inside `tool_result`), repeat; `pause_turn` -> resend;
   `refusal` -> spoken decline; `max_tokens` -> return what there is. `response.toParam()` is

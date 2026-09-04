@@ -31,7 +31,9 @@ if ($devices.Count -eq 0) {
     adb devices
     throw "No phone in 'device' state. Plug it in, unlock it and accept the USB debugging prompt."
 }
-Write-Host "Using device $($devices[0].Split()[0])"
+$serial = ($devices[0] -split "\s+")[0]
+Write-Host "Using device $serial"
+$env:ANDROID_SERIAL = $serial   # every adb call below targets this device even if others are attached
 
 if ($Uninstall -ne "") {
     Write-Host "Uninstalling $Uninstall"
@@ -48,7 +50,11 @@ adb install -r -g app\build\outputs\apk\debug\app-debug.apk
 if ($LASTEXITCODE -ne 0) { throw "Install failed" }
 
 function Grant([string[]]$Cmd) {
-    & adb shell @Cmd 2>&1 | Out-Null
+    # A failing grant writes to stderr; under ErrorActionPreference=Stop, Windows PowerShell 5.1 would
+    # turn that into a terminating error, so relax it for the duration of the call.
+    $ErrorActionPreference = "Continue"
+    $null = & adb shell @Cmd 2>&1
+    $ErrorActionPreference = "Stop"
     if ($LASTEXITCODE -eq 0) { Write-Host "ok   $($Cmd -join ' ')" } else { Write-Host "skip $($Cmd -join ' ')" }
 }
 foreach ($p in "RECORD_AUDIO", "SEND_SMS", "READ_CONTACTS", "CALL_PHONE", "POST_NOTIFICATIONS", "BLUETOOTH_CONNECT", "WRITE_SECURE_SETTINGS") {

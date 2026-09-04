@@ -97,6 +97,7 @@ class HoldDetector(
             slots.clear()
             cancelPending()
         }
+        timer.shutdownNow()
         status = "stopped"
     }
 
@@ -306,7 +307,11 @@ class HoldDetector(
     private fun schedule(since: Long) {
         cancelPending()
         val delay = (settings.holdMillis - (now() - since)).coerceAtLeast(0)
-        pending = timer.schedule({ fireIfStillHeld(since) }, delay, TimeUnit.MILLISECONDS)
+        pending = try {
+            timer.schedule({ fireIfStillHeld(since) }, delay, TimeUnit.MILLISECONDS)
+        } catch (e: java.util.concurrent.RejectedExecutionException) {
+            null // detector was stopped; the timer is gone
+        }
     }
 
     private fun cancelPending() {

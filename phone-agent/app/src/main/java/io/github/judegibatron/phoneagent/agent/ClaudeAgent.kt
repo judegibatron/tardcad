@@ -1,7 +1,6 @@
 package io.github.judegibatron.phoneagent.agent
 
 import com.anthropic.client.AnthropicClient
-import com.anthropic.client.okhttp.AnthropicOkHttpClient
 import com.anthropic.models.beta.messages.BetaBase64ImageSource
 import com.anthropic.models.beta.messages.BetaCacheControlEphemeral
 import com.anthropic.models.beta.messages.BetaContentBlockParam
@@ -23,10 +22,8 @@ import io.github.judegibatron.phoneagent.core.Settings
 import io.github.judegibatron.phoneagent.tools.ToolContext
 import io.github.judegibatron.phoneagent.tools.ToolOutput
 import io.github.judegibatron.phoneagent.tools.ToolRegistry
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.future.await
 import org.json.JSONObject
-import java.time.Duration
 
 /**
  * One conversation with Claude for one voice session. Holds the message history, runs the
@@ -42,28 +39,23 @@ class ClaudeAgent(
 
     private val history = mutableListOf<BetaMessageParam>()
     private val model: String = settings.model
+    private val apiKey: String = settings.apiKey ?: ""
 
-    private val client: AnthropicClient by lazy {
-        AnthropicOkHttpClient.builder()
-            .apiKey(settings.apiKey ?: "")
-            .timeout(Duration.ofSeconds(120))
-            .maxRetries(2)
-            .build()
-    }
+    private val client: AnthropicClient get() = ClaudeClients.get(apiKey)
 
     suspend fun runTurn(userText: String, ctx: ToolContext, onStatus: (String) -> Unit): TurnResult {
-        history += BetaMessageParam.builder().role(BetaMessageParam.Role.USER).content(userText).build()
+        val turnStart = history.size
+        history += userMessage(userText)
         val used = mutableListOf<String>()
         var suppressFollowUp = false
-        val context = deviceContext()
         var rounds = 0
 
         while (rounds < settings.maxToolRounds) {
             rounds++
             onStatus(if (rounds == 1) "Thinking" else "Thinking (step $rounds)")
-            val response: BetaMessage = withContext(Dispatchers.IO) {
-                client.beta().messages().create(buildParams(context))
-            }
+            // The async client returns a future; await() makes a hold-to-cancel take effect immediately
+            // instead of waiting for the HTTP round-trip to finish.
+            val response: BetaMessage = client.async().beta().messages().create(buildParams()).await()
             logUsage(response)
             history += response.toParam()
 
@@ -90,6 +82,9 @@ class ClaudeAgent(
                 }
                 stop == BetaStopReason.Value.PAUSE_TURN -> continue
                 stop == BetaStopReason.Value.REFUSAL -> {
+                    // A refused turn may carry an empty assistant message, which the API rejects on
+                    // replay; roll the whole turn back so a follow-up starts from a clean history.
+                    while (history.size > turnStart) history.removeAt(history.lastIndex)
                     val why = response.stopDetails().orElse(null)?.explanation()?.orElse(null)
                     return TurnResult(why?.let { "I can't help with that: $it" } ?: "I can't help with that request.", used, suppressFollowUp)
                 }
@@ -102,7 +97,27 @@ class ClaudeAgent(
         return TurnResult("I hit my step limit before finishing. Here's where I got to: I used ${used.distinct().joinToString()}.", used, suppressFollowUp)
     }
 
-    private fun buildParams(context: String): MessageCreateParams {
+    /**
+     * The first user turn carries the volatile device context as its own text block. Keeping it out
+     * of the system array means the cached prefix (tools + static instructions) never changes and
+     * the conversation stays append-only for the top-level cache breakpoint.
+     */
+    private fun userMessage(userText: String): BetaMessageParam {
+        val builder = BetaMessageParam.builder().role(BetaMessageParam.Role.USER)
+        if (history.isEmpty()) {
+            builder.contentOfBetaContentBlockParams(
+                listOf(
+                    BetaContentBlockParam.ofText(deviceContext() + " (Call get_device_state if you need fresher facts.)"),
+                    BetaContentBlockParam.ofText(userText),
+                ),
+            )
+        } else {
+            builder.content(userText)
+        }
+        return builder.build()
+    }
+
+    private fun buildParams(): MessageCreateParams {
         val builder = MessageCreateParams.builder()
             .model(model)
             .maxTokens(settings.maxTokens.toLong())
@@ -114,7 +129,6 @@ class ClaudeAgent(
                             .text(SystemPrompt.STATIC)
                             .cacheControl(BetaCacheControlEphemeral.builder().build())
                             .build(),
-                        BetaTextBlockParam.builder().text(context).build(),
                     ),
                 ),
             )

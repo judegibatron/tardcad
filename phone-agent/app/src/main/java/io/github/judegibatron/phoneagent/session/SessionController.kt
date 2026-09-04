@@ -82,8 +82,9 @@ class SessionController(private val app: Context) {
 
     fun stop(reason: String) {
         AgentLog.d(TAG, "session stopped: $reason")
+        // Keep the reference: isActive turns false immediately, and the next start() still joins
+        // this job so its cleanup (overlay, audio focus, TTS) cannot race a new session.
         job?.cancel()
-        job = null
     }
 
     private suspend fun runSession(source: Source, typedText: String?) {
@@ -245,8 +246,11 @@ class SessionController(private val app: Context) {
 
         fun isAffirmative(answer: String): Boolean {
             val normalized = answer.lowercase(Locale.ROOT).replace(Regex("[^a-z' ]"), " ").replace(Regex("\\s+"), " ").trim()
-            if (NEGATIVE.any { normalized == it || normalized.startsWith("$it ") || normalized.contains(" $it") }) return false
-            return AFFIRMATIVE.any { normalized == it || normalized.startsWith("$it ") || normalized.contains(" $it") }
+            if (normalized.isEmpty()) return false
+            // Whole-word matching: "now" must not count as "no", "notes" must not count as "not".
+            val padded = " $normalized "
+            if (NEGATIVE.any { padded.contains(" $it ") }) return false
+            return AFFIRMATIVE.any { padded.contains(" $it ") }
         }
 
         fun friendlyError(e: Throwable): String = when (e) {

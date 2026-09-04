@@ -122,11 +122,11 @@ class SetVolumeTool : AgentTool(
             audio.setStreamVolume(stream, index, AudioManager.FLAG_SHOW_UI)
             ToolOutput.text("Set $streamName volume to $percent% ($index of $max).")
         } catch (e: SecurityException) {
-            if (ctx.root.isAvailable() && ctx.root.run("cmd media_session volume --stream $stream --set $index").ok) {
-                ToolOutput.text("Set $streamName volume to $percent% (via root).")
-            } else {
-                ToolOutput.error("Volume change was blocked by the do-not-disturb policy: ${e.message}")
+            val viaRoot = withContext(Dispatchers.IO) {
+                ctx.root.isAvailable() && ctx.root.run("cmd media_session volume --stream $stream --set $index").ok
             }
+            if (viaRoot) ToolOutput.text("Set $streamName volume to $percent% (via root).")
+            else ToolOutput.error("Volume change was blocked by the do-not-disturb policy: ${e.message}")
         }
     }
 }
